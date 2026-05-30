@@ -1,0 +1,17 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownsPath(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    match /users/{uid}/media/{fileName} {
+      allow read, write, delete: if ownsPath(uid);
+    }
+  }
+}
