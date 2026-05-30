@@ -1,6 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
 
-export type PromptMode = "chat" | "image" | "video" | "audio" | "effects";
+export type PromptMode = "chat" | "image" | "video" | "audio" | "effects" | "voice-chat" | "voice-clone";
 
 export type ChatMessage = {
   role: "user" | "assistant";

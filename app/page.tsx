@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "./components/AppShell";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -15,6 +15,8 @@ const promptCopy: Record<PromptMode, string> = {
   video: "What do you want to create?",
   audio: "Which sound do you want?",
   effects: "Which sound do you want?",
+  "voice-chat": "What do you want to hear?",
+  "voice-clone": "Describe the voice you want to clone",
 };
 
 const getAssistantReply = async (
@@ -110,9 +112,34 @@ const generateSoundEffect = async (prompt: string) => {
   };
 };
 
+const generateVoiceReply = async (text: string, title: string) => {
+  const response = await fetch("/api/voice", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ text, title }),
+  });
+
+  if (!response.ok) {
+    const data = (await response.json()) as { error?: string };
+    throw new Error(data.error || "Could not generate voice reply.");
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const filenameMatch = disposition.match(/filename="([^"]+)"/);
+
+  return {
+    url: URL.createObjectURL(blob),
+    filename: filenameMatch?.[1] || "voice-reply.mp3",
+  };
+};
+
 export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuClosing, setMenuClosing] = useState(false);
+  const [voiceMenuOpen, setVoiceMenuOpen] = useState(false);
   const [promptMode, setPromptMode] = useState<PromptMode>("chat");
   const [prompt, setPrompt] = useState("");
   const [saving, setSaving] = useState(false);
@@ -126,6 +153,19 @@ export default function Home() {
   const router = useRouter();
   const { user } = useAuth();
 
+  const closeMenu = useCallback(() => {
+    if (!menuOpen || menuClosing) {
+      return;
+    }
+
+    setMenuClosing(true);
+    window.setTimeout(() => {
+      setMenuOpen(false);
+      setVoiceMenuOpen(false);
+      setMenuClosing(false);
+    }, 180);
+  }, [menuClosing, menuOpen]);
+
   useEffect(() => {
     return () => {
       if (soundResult?.url) {
@@ -134,17 +174,33 @@ export default function Home() {
     };
   }, [soundResult]);
 
-  const closeMenu = () => {
-    if (!menuOpen || menuClosing) {
-      return;
+  useEffect(() => {
+    if (!menuOpen) {
+      return undefined;
     }
 
-    setMenuClosing(true);
-    window.setTimeout(() => {
-      setMenuOpen(false);
-      setMenuClosing(false);
-    }, 180);
-  };
+    const handlePointerDown = (event: PointerEvent) => {
+      if (footerRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      closeMenu();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeMenu();
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeMenu, menuOpen]);
 
   const selectPromptMode = (mode: PromptMode) => {
     setPromptMode(mode);
@@ -168,6 +224,18 @@ export default function Home() {
       if (promptMode === "effects") {
         const result = await generateSoundEffect(trimmedPrompt);
         setSoundResult(result);
+        return;
+      }
+
+      if (promptMode === "voice-chat") {
+        const assistantReply = await getAssistantReply(trimmedPrompt);
+        const result = await generateVoiceReply(assistantReply, trimmedPrompt);
+        setSoundResult(result);
+        return;
+      }
+
+      if (promptMode === "voice-clone") {
+        setError("Voice cloning needs a sample upload. Select Chat with voice for MP3 replies now.");
         return;
       }
 
@@ -268,6 +336,7 @@ export default function Home() {
             }
 
             setMenuOpen(true);
+            setVoiceMenuOpen(false);
           }}
           type="button"
         >
@@ -287,10 +356,25 @@ export default function Home() {
               <img className="menu-icon" src="/icons/video.png" alt="" />
               Video
             </button>
-            <button type="button" role="menuitem" onClick={() => selectPromptMode("audio")}>
+            <button
+              type="button"
+              role="menuitem"
+              aria-expanded={voiceMenuOpen}
+              onClick={() => setVoiceMenuOpen((open) => !open)}
+            >
               <img className="menu-icon" src="/icons/audio.png" alt="" />
               Audio
             </button>
+            {voiceMenuOpen ? (
+              <div className="voice-menu-options" role="group" aria-label="Audio options">
+                <button type="button" onClick={() => selectPromptMode("voice-chat")}>
+                  Chat with voice
+                </button>
+                <button type="button" onClick={() => selectPromptMode("voice-clone")}>
+                  Clone voice
+                </button>
+              </div>
+            ) : null}
             <button type="button" role="menuitem" onClick={() => selectPromptMode("effects")}>
               <img className="menu-icon" src="/icons/effects.svg" alt="" />
               Effects

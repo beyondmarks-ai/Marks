@@ -1260,6 +1260,22 @@ a {
   outline: 0;
 }
 
+.voice-menu-options {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 4px 36px;
+  padding: 4px;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.voice-menu-options button {
+  min-height: 34px;
+  grid-template-columns: 1fr;
+  padding: 0 10px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+}
+
 @keyframes menuIn {
   from {
     opacity: 0;
