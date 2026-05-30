@@ -242,7 +242,7 @@ export default function Home() {
               Audio
             </button>
             <button type="button" role="menuitem" onClick={() => selectPromptMode("effects")}>
-              <img className="menu-icon" src="/icons/audio.png" alt="" />
+              <img className="menu-icon" src="/icons/effects.svg" alt="" />
               Effects
             </button>
             <button type="button" role="menuitem" onClick={() => selectPromptMode("chat")}>
