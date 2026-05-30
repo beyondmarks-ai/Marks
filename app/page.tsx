@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "./components/AppShell";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -14,7 +14,7 @@ const promptCopy: Record<PromptMode, string> = {
   image: "What do you want to create?",
   video: "What do you want to create?",
   audio: "Which sound do you want?",
-  effects: "Which effect do you want?",
+  effects: "Which sound do you want?",
 };
 
 const getAssistantReply = async (
@@ -86,6 +86,30 @@ const suggestTitle = async (type: "image" | "video", prompt: string) => {
   return data.title;
 };
 
+const generateSoundEffect = async (prompt: string) => {
+  const response = await fetch("/api/effects", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ prompt }),
+  });
+
+  if (!response.ok) {
+    const data = (await response.json()) as { error?: string };
+    throw new Error(data.error || "Could not generate sound effect.");
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const filenameMatch = disposition.match(/filename="([^"]+)"/);
+
+  return {
+    url: URL.createObjectURL(blob),
+    filename: filenameMatch?.[1] || "sound-effect.mp3",
+  };
+};
+
 export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuClosing, setMenuClosing] = useState(false);
@@ -93,6 +117,7 @@ export default function Home() {
   const [prompt, setPrompt] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [soundResult, setSoundResult] = useState<{ url: string; filename: string } | null>(null);
   const [generatingMode, setGeneratingMode] = useState<"image" | "video" | null>(null);
   const [videoSeconds, setVideoSeconds] = useState<VideoSeconds>("4");
   const [videoRatio, setVideoRatio] = useState<VideoRatio>("16:9");
@@ -100,6 +125,14 @@ export default function Home() {
   const footerRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const { user } = useAuth();
+
+  useEffect(() => {
+    return () => {
+      if (soundResult?.url) {
+        URL.revokeObjectURL(soundResult.url);
+      }
+    };
+  }, [soundResult]);
 
   const closeMenu = () => {
     if (!menuOpen || menuClosing) {
@@ -128,10 +161,17 @@ export default function Home() {
 
     setSaving(true);
     setError("");
+    setSoundResult(null);
     setGeneratingMode(promptMode === "image" || promptMode === "video" ? promptMode : null);
 
     try {
-      if (promptMode === "chat" || promptMode === "audio" || promptMode === "effects") {
+      if (promptMode === "effects") {
+        const result = await generateSoundEffect(trimmedPrompt);
+        setSoundResult(result);
+        return;
+      }
+
+      if (promptMode === "chat" || promptMode === "audio") {
         const assistantReply = await getAssistantReply(trimmedPrompt);
         const chatId = await createChat(user.uid, trimmedPrompt, assistantReply);
         router.push(`/history/${chatId}`);
@@ -198,6 +238,16 @@ export default function Home() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {soundResult ? (
+        <section className="sound-result" aria-label="Generated sound effect">
+          <span>Generated MP3</span>
+          <audio src={soundResult.url} controls />
+          <a href={soundResult.url} download={soundResult.filename}>
+            Download
+          </a>
+        </section>
       ) : null}
 
       <form

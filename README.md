@@ -10,7 +10,7 @@ Next.js app for chat, image, and video generation with Firebase-backed auth, sto
    npm install
    ```
 
-2. Copy `.env.example` to `.env.local` and fill in the Firebase and Azure OpenAI values.
+2. Copy `.env.example` to `.env.local` and fill in the Firebase, Azure OpenAI, and ElevenLabs values.
 
 3. Run the development server:
 
