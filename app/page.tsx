@@ -13,7 +13,8 @@ const promptCopy: Record<PromptMode, string> = {
   chat: "What do you want to know?",
   image: "What do you want to create?",
   video: "What do you want to create?",
-  audio: "What do you want to create?",
+  audio: "Which sound do you want?",
+  effects: "Which effect do you want?",
 };
 
 const getAssistantReply = async (
@@ -130,7 +131,7 @@ export default function Home() {
     setGeneratingMode(promptMode === "image" || promptMode === "video" ? promptMode : null);
 
     try {
-      if (promptMode === "chat" || promptMode === "audio") {
+      if (promptMode === "chat" || promptMode === "audio" || promptMode === "effects") {
         const assistantReply = await getAssistantReply(trimmedPrompt);
         const chatId = await createChat(user.uid, trimmedPrompt, assistantReply);
         router.push(`/history/${chatId}`);
@@ -239,6 +240,10 @@ export default function Home() {
             <button type="button" role="menuitem" onClick={() => selectPromptMode("audio")}>
               <img className="menu-icon" src="/icons/audio.png" alt="" />
               Audio
+            </button>
+            <button type="button" role="menuitem" onClick={() => selectPromptMode("effects")}>
+              <img className="menu-icon" src="/icons/audio.png" alt="" />
+              Effects
             </button>
             <button type="button" role="menuitem" onClick={() => selectPromptMode("chat")}>
               <img className="menu-icon" src="/icons/chat.png" alt="" />
