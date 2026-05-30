@@ -27,10 +27,16 @@ const readTextError = async (response: Response) => {
 };
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as { text?: string; title?: string; voiceId?: string };
+  const body = (await request.json()) as {
+    text?: string;
+    title?: string;
+    voiceId?: string;
+    speed?: number;
+  };
   const text = body.text?.trim();
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const voiceId = body.voiceId?.trim() || process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
+  const speed = Math.min(1.2, Math.max(0.7, Number(body.speed) || 1));
 
   if (!text) {
     return NextResponse.json({ error: "Text is required." }, { status: 400 });
@@ -52,6 +58,9 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           text,
           model_id: "eleven_multilingual_v2",
+          voice_settings: {
+            speed,
+          },
         }),
       },
     );

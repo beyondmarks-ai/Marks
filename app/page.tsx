@@ -112,13 +112,18 @@ const generateSoundEffect = async (prompt: string) => {
   };
 };
 
-const generateVoiceReplyWithVoice = async (text: string, title: string, voiceId: string) => {
+const generateVoiceReplyWithVoice = async (
+  text: string,
+  title: string,
+  voiceId: string,
+  speed: number,
+) => {
   const response = await fetch("/api/voice", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ text, title, voiceId }),
+    body: JSON.stringify({ text, title, voiceId, speed }),
   });
 
   if (!response.ok) {
@@ -164,6 +169,7 @@ export default function Home() {
   const [soundResult, setSoundResult] = useState<{ url: string; filename: string } | null>(null);
   const [voices, setVoices] = useState<VoiceOption[]>([]);
   const [selectedVoiceId, setSelectedVoiceId] = useState("");
+  const [voiceSpeed, setVoiceSpeed] = useState(1);
   const [voicesLoading, setVoicesLoading] = useState(false);
   const [voicesLoaded, setVoicesLoaded] = useState(false);
   const [generatingMode, setGeneratingMode] = useState<"image" | "video" | null>(null);
@@ -277,7 +283,12 @@ export default function Home() {
         }
 
         const assistantReply = await getAssistantReply(trimmedPrompt);
-        const result = await generateVoiceReplyWithVoice(assistantReply, trimmedPrompt, selectedVoiceId);
+        const result = await generateVoiceReplyWithVoice(
+          assistantReply,
+          trimmedPrompt,
+          selectedVoiceId,
+          voiceSpeed,
+        );
         setSoundResult(result);
         return;
       }
@@ -287,7 +298,12 @@ export default function Home() {
           throw new Error("Select a voice first.");
         }
 
-        const result = await generateVoiceReplyWithVoice(trimmedPrompt, trimmedPrompt, selectedVoiceId);
+        const result = await generateVoiceReplyWithVoice(
+          trimmedPrompt,
+          trimmedPrompt,
+          selectedVoiceId,
+          voiceSpeed,
+        );
         setSoundResult(result);
         return;
       }
@@ -513,6 +529,18 @@ export default function Home() {
                 </option>
               ))}
             </select>
+            <label className="voice-speed-control">
+              <span>{voiceSpeed.toFixed(2)}x</span>
+              <input
+                aria-label="Voice speed"
+                max="1.2"
+                min="0.7"
+                step="0.05"
+                type="range"
+                value={voiceSpeed}
+                onChange={(event) => setVoiceSpeed(Number(event.target.value))}
+              />
+            </label>
           </div>
         ) : null}
         <button className="voice-button" aria-label="Save prompt" type="submit" disabled={saving}>
