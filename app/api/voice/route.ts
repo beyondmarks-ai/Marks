@@ -27,10 +27,10 @@ const readTextError = async (response: Response) => {
 };
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as { text?: string; title?: string };
+  const body = (await request.json()) as { text?: string; title?: string; voiceId?: string };
   const text = body.text?.trim();
   const apiKey = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
+  const voiceId = body.voiceId?.trim() || process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
 
   if (!text) {
     return NextResponse.json({ error: "Text is required." }, { status: 400 });

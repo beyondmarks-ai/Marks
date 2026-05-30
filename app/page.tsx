@@ -112,13 +112,13 @@ const generateSoundEffect = async (prompt: string) => {
   };
 };
 
-const generateVoiceReply = async (text: string, title: string) => {
+const generateVoiceReplyWithVoice = async (text: string, title: string, voiceId: string) => {
   const response = await fetch("/api/voice", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ text, title }),
+    body: JSON.stringify({ text, title, voiceId }),
   });
 
   if (!response.ok) {
@@ -136,6 +136,23 @@ const generateVoiceReply = async (text: string, title: string) => {
   };
 };
 
+type VoiceOption = {
+  id: string;
+  name: string;
+  category?: string;
+};
+
+const loadVoices = async () => {
+  const response = await fetch("/api/voices");
+  const data = (await response.json()) as { voices?: VoiceOption[]; error?: string };
+
+  if (!response.ok) {
+    throw new Error(data.error || "Could not load voices.");
+  }
+
+  return data.voices ?? [];
+};
+
 export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuClosing, setMenuClosing] = useState(false);
@@ -145,6 +162,10 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [soundResult, setSoundResult] = useState<{ url: string; filename: string } | null>(null);
+  const [voices, setVoices] = useState<VoiceOption[]>([]);
+  const [selectedVoiceId, setSelectedVoiceId] = useState("");
+  const [voicesLoading, setVoicesLoading] = useState(false);
+  const [voicesLoaded, setVoicesLoaded] = useState(false);
   const [generatingMode, setGeneratingMode] = useState<"image" | "video" | null>(null);
   const [videoSeconds, setVideoSeconds] = useState<VideoSeconds>("4");
   const [videoRatio, setVideoRatio] = useState<VideoRatio>("16:9");
@@ -202,6 +223,29 @@ export default function Home() {
     };
   }, [closeMenu, menuOpen]);
 
+  useEffect(() => {
+    const isVoiceMode = promptMode === "voice-chat" || promptMode === "voice-clone";
+
+    if (!isVoiceMode || voicesLoaded || voicesLoading) {
+      return;
+    }
+
+    setVoicesLoading(true);
+    loadVoices()
+      .then((loadedVoices) => {
+        setVoices(loadedVoices);
+        setSelectedVoiceId((currentVoiceId) => currentVoiceId || loadedVoices[0]?.id || "");
+        setVoicesLoaded(true);
+      })
+      .catch((voiceError) => {
+        setVoicesLoaded(true);
+        setError(voiceError instanceof Error ? voiceError.message : "Could not load voices.");
+      })
+      .finally(() => {
+        setVoicesLoading(false);
+      });
+  }, [promptMode, voicesLoaded, voicesLoading]);
+
   const selectPromptMode = (mode: PromptMode) => {
     setPromptMode(mode);
     closeMenu();
@@ -228,14 +272,22 @@ export default function Home() {
       }
 
       if (promptMode === "voice-chat") {
+        if (!selectedVoiceId) {
+          throw new Error("Select a voice first.");
+        }
+
         const assistantReply = await getAssistantReply(trimmedPrompt);
-        const result = await generateVoiceReply(assistantReply, trimmedPrompt);
+        const result = await generateVoiceReplyWithVoice(assistantReply, trimmedPrompt, selectedVoiceId);
         setSoundResult(result);
         return;
       }
 
       if (promptMode === "voice-clone") {
-        const result = await generateVoiceReply(trimmedPrompt, trimmedPrompt);
+        if (!selectedVoiceId) {
+          throw new Error("Select a voice first.");
+        }
+
+        const result = await generateVoiceReplyWithVoice(trimmedPrompt, trimmedPrompt, selectedVoiceId);
         setSoundResult(result);
         return;
       }
@@ -320,7 +372,14 @@ export default function Home() {
       ) : null}
 
       <form
-        className={`prompt-footer${promptMode === "image" || promptMode === "video" ? " has-media-settings" : ""}`}
+        className={`prompt-footer${
+          promptMode === "image" ||
+          promptMode === "video" ||
+          promptMode === "voice-chat" ||
+          promptMode === "voice-clone"
+            ? " has-media-settings"
+            : ""
+        }`}
         aria-label="Prompt input"
         ref={footerRef}
         onSubmit={submitPrompt}
@@ -436,6 +495,24 @@ export default function Home() {
               </div>
             </>
           ) : null}
+          </div>
+        ) : null}
+        {promptMode === "voice-chat" || promptMode === "voice-clone" ? (
+          <div className="voice-controls" aria-label="Voice settings">
+            <select
+              aria-label="Select ElevenLabs voice"
+              disabled={voicesLoading || !voices.length}
+              value={selectedVoiceId}
+              onChange={(event) => setSelectedVoiceId(event.target.value)}
+            >
+              {voicesLoading ? <option>Loading voices</option> : null}
+              {!voicesLoading && !voices.length ? <option>No voices found</option> : null}
+              {voices.map((voice) => (
+                <option key={voice.id} value={voice.id}>
+                  {voice.name}
+                </option>
+              ))}
+            </select>
           </div>
         ) : null}
         <button className="voice-button" aria-label="Save prompt" type="submit" disabled={saving}>

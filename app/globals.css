@@ -1161,6 +1161,37 @@ a {
   gap: 6px;
 }
 
+.voice-controls {
+  display: inline-flex;
+  align-items: center;
+  min-width: 150px;
+}
+
+.voice-controls select {
+  width: 100%;
+  max-width: 190px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  outline: 0;
+  padding: 0 28px 0 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.voice-controls select:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.voice-controls option {
+  background: #212121;
+  color: #ffffff;
+}
+
 .duration-picker {
   display: inline-flex;
   align-items: center;
@@ -1390,6 +1421,14 @@ a {
     gap: 4px;
   }
 
+  .voice-controls {
+    min-width: 130px;
+  }
+
+  .voice-controls select {
+    max-width: 160px;
+  }
+
   .auth-panel {
     padding: 22px;
   }
@@ -1454,5 +1493,14 @@ a {
     grid-column: 1 / -1;
     flex-wrap: wrap;
     justify-content: center;
+  }
+
+  .prompt-footer.has-media-settings .voice-controls {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
+
+  .prompt-footer.has-media-settings .voice-controls select {
+    max-width: min(320px, 100%);
   }
 }
