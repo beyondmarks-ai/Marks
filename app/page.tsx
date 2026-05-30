@@ -16,7 +16,7 @@ const promptCopy: Record<PromptMode, string> = {
   audio: "Which sound do you want?",
   effects: "Which sound do you want?",
   "voice-chat": "What do you want to hear?",
-  "voice-clone": "Describe the voice you want to clone",
+  "voice-clone": "What text should become speech?",
 };
 
 const getAssistantReply = async (
@@ -235,7 +235,8 @@ export default function Home() {
       }
 
       if (promptMode === "voice-clone") {
-        setError("Voice cloning needs a sample upload. Select Chat with voice for MP3 replies now.");
+        const result = await generateVoiceReply(trimmedPrompt, trimmedPrompt);
+        setSoundResult(result);
         return;
       }
 
