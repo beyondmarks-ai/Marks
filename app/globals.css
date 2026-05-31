@@ -1215,6 +1215,28 @@ a {
   cursor: pointer;
 }
 
+.background-effect-input {
+  width: 160px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  outline: 0;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.background-effect-input::placeholder {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.background-effect-input:focus,
+.voice-controls select:focus {
+  border-color: rgba(255, 45, 45, 0.68);
+}
+
 .duration-picker {
   display: inline-flex;
   align-items: center;
@@ -1456,6 +1478,10 @@ a {
     width: 100px;
   }
 
+  .background-effect-input {
+    width: 140px;
+  }
+
   .auth-panel {
     padding: 22px;
   }
@@ -1530,5 +1556,9 @@ a {
 
   .prompt-footer.has-media-settings .voice-controls select {
     max-width: min(320px, 100%);
+  }
+
+  .prompt-footer.has-media-settings .background-effect-input {
+    width: min(320px, 100%);
   }
 }

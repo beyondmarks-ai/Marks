@@ -107,6 +107,7 @@ const generateSoundEffect = async (prompt: string) => {
   const filenameMatch = disposition.match(/filename="([^"]+)"/);
 
   return {
+    blob,
     url: URL.createObjectURL(blob),
     filename: filenameMatch?.[1] || "sound-effect.mp3",
   };
@@ -136,8 +137,107 @@ const generateVoiceReplyWithVoice = async (
   const filenameMatch = disposition.match(/filename="([^"]+)"/);
 
   return {
+    blob,
     url: URL.createObjectURL(blob),
     filename: filenameMatch?.[1] || "voice-reply.mp3",
+  };
+};
+
+type AudioResult = {
+  blob: Blob;
+  url: string;
+  filename: string;
+};
+
+const writeString = (view: DataView, offset: number, value: string) => {
+  for (let index = 0; index < value.length; index += 1) {
+    view.setUint8(offset + index, value.charCodeAt(index));
+  }
+};
+
+const audioBufferToWav = (buffer: AudioBuffer) => {
+  const channelCount = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const sampleCount = buffer.length;
+  const bytesPerSample = 2;
+  const blockAlign = channelCount * bytesPerSample;
+  const output = new ArrayBuffer(44 + sampleCount * blockAlign);
+  const view = new DataView(output);
+
+  writeString(view, 0, "RIFF");
+  view.setUint32(4, 36 + sampleCount * blockAlign, true);
+  writeString(view, 8, "WAVE");
+  writeString(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channelCount, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bytesPerSample * 8, true);
+  writeString(view, 36, "data");
+  view.setUint32(40, sampleCount * blockAlign, true);
+
+  let offset = 44;
+  for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
+    for (let channelIndex = 0; channelIndex < channelCount; channelIndex += 1) {
+      const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channelIndex)[sampleIndex]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      offset += bytesPerSample;
+    }
+  }
+
+  return new Blob([output], { type: "audio/wav" });
+};
+
+const mixVoiceWithBackground = async (
+  voiceBlob: Blob,
+  backgroundBlob: Blob,
+  title: string,
+): Promise<AudioResult> => {
+  const audioContext = new AudioContext();
+  const [voiceBuffer, backgroundBuffer] = await Promise.all([
+    voiceBlob.arrayBuffer().then((buffer) => audioContext.decodeAudioData(buffer)),
+    backgroundBlob.arrayBuffer().then((buffer) => audioContext.decodeAudioData(buffer)),
+  ]);
+  await audioContext.close();
+
+  const sampleRate = Math.max(voiceBuffer.sampleRate, backgroundBuffer.sampleRate);
+  const duration = Math.max(voiceBuffer.duration + 0.5, backgroundBuffer.duration);
+  const channelCount = Math.max(voiceBuffer.numberOfChannels, backgroundBuffer.numberOfChannels);
+  const offlineContext = new OfflineAudioContext(channelCount, Math.ceil(duration * sampleRate), sampleRate);
+
+  const voiceSource = offlineContext.createBufferSource();
+  const voiceGain = offlineContext.createGain();
+  voiceSource.buffer = voiceBuffer;
+  voiceGain.gain.value = 1;
+  voiceSource.connect(voiceGain).connect(offlineContext.destination);
+  voiceSource.start(0.15);
+
+  const backgroundSource = offlineContext.createBufferSource();
+  const backgroundGain = offlineContext.createGain();
+  backgroundSource.buffer = backgroundBuffer;
+  backgroundSource.loop = backgroundBuffer.duration < duration;
+  backgroundGain.gain.setValueAtTime(0, 0);
+  backgroundGain.gain.linearRampToValueAtTime(0.28, 0.45);
+  backgroundGain.gain.setValueAtTime(0.28, Math.max(0.45, duration - 0.75));
+  backgroundGain.gain.linearRampToValueAtTime(0, duration);
+  backgroundSource.connect(backgroundGain).connect(offlineContext.destination);
+  backgroundSource.start(0);
+  backgroundSource.stop(duration);
+
+  const mixedBuffer = await offlineContext.startRendering();
+  const mixedBlob = audioBufferToWav(mixedBuffer);
+  const filename = `${title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "voice-scene"}.wav`;
+
+  return {
+    blob: mixedBlob,
+    url: URL.createObjectURL(mixedBlob),
+    filename,
   };
 };
 
@@ -167,6 +267,7 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [soundResult, setSoundResult] = useState<{ url: string; filename: string } | null>(null);
+  const [backgroundPrompt, setBackgroundPrompt] = useState("");
   const [voices, setVoices] = useState<VoiceOption[]>([]);
   const [selectedVoiceId, setSelectedVoiceId] = useState("");
   const [voiceSpeed, setVoiceSpeed] = useState(1);
@@ -283,12 +384,19 @@ export default function Home() {
         }
 
         const assistantReply = await getAssistantReply(trimmedPrompt);
-        const result = await generateVoiceReplyWithVoice(
+        const voiceResult = await generateVoiceReplyWithVoice(
           assistantReply,
           trimmedPrompt,
           selectedVoiceId,
           voiceSpeed,
         );
+        const result = backgroundPrompt.trim()
+          ? await mixVoiceWithBackground(
+              voiceResult.blob,
+              (await generateSoundEffect(backgroundPrompt.trim())).blob,
+              trimmedPrompt,
+            )
+          : voiceResult;
         setSoundResult(result);
         return;
       }
@@ -298,12 +406,19 @@ export default function Home() {
           throw new Error("Select a voice first.");
         }
 
-        const result = await generateVoiceReplyWithVoice(
+        const voiceResult = await generateVoiceReplyWithVoice(
           trimmedPrompt,
           trimmedPrompt,
           selectedVoiceId,
           voiceSpeed,
         );
+        const result = backgroundPrompt.trim()
+          ? await mixVoiceWithBackground(
+              voiceResult.blob,
+              (await generateSoundEffect(backgroundPrompt.trim())).blob,
+              trimmedPrompt,
+            )
+          : voiceResult;
         setSoundResult(result);
         return;
       }
@@ -379,7 +494,7 @@ export default function Home() {
 
       {soundResult ? (
         <section className="sound-result" aria-label="Generated sound effect">
-          <span>Generated MP3</span>
+          <span>Generated audio</span>
           <audio src={soundResult.url} controls />
           <a href={soundResult.url} download={soundResult.filename}>
             Download
@@ -541,6 +656,14 @@ export default function Home() {
                 onChange={(event) => setVoiceSpeed(Number(event.target.value))}
               />
             </label>
+            <input
+              className="background-effect-input"
+              aria-label="Background effect"
+              placeholder="Background effect"
+              type="text"
+              value={backgroundPrompt}
+              onChange={(event) => setBackgroundPrompt(event.target.value)}
+            />
           </div>
         ) : null}
         <button className="voice-button" aria-label="Save prompt" type="submit" disabled={saving}>
